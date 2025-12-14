@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>User Location</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+        #map {
+            width: 70%;
+        }
+        #right-panel {
+            width: 30%;
+            padding: 10px;
+            overflow-y: auto;
+            border-left: 1px solid #ccc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-size: 13px;
+        }
+        th {
+            background: #f1f1f1;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="container">
+
+    <div id="map"></div>
+
+    <div id="right-panel">
+
+        <h3>Filter By Date</h3>
+
+        <form th:action="@{/portal/locationUser/{userId}(userId=${userId})}" method="post">
+            <input type="hidden" name="userId" th:value="${userId}"/>
+
+            <label>Start Date</label>
+            <input type="date" name="startDate" th:value="${startDate}" required>
+
+            <br><br>
+
+            <label>End Date</label>
+            <input type="date" name="endDate" th:value="${endDate}" required>
+
+            <br><br>
+
+            <button type="submit">Get Result</button>
+        </form>
+
+        <hr>
+
+        <table>
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Lat</th>
+                <th>Lng</th>
+                <th>Visited At</th>
+                <th>Time Spent</th>
+                <th>Place</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr th:each="location, stat : ${locations}"
+                th:attr="data-lat=${location.latitude}, data-lng=${location.longitude}"
+                onmouseenter="fetchPlaceName(this)">
+                <td th:text="${stat.index + 1}"></td>
+                <td th:text="${location.latitude}"></td>
+                <td th:text="${location.longitude}"></td>
+                <td th:text="${#dates.format(location.visitedAt,'dd-MM-yyyy HH:mm:ss')}"></td>
+                <td th:text="${location.timeSpentMinutes != null ? location.timeSpentMinutes + ' min' : '-'}"></td>
+                <td class="place-cell">Hover</td>
+            </tr>
+
+            <tr th:if="${#lists.isEmpty(locations)}">
+                <td colspan="6" style="text-align:center;color:#999">
+                    No data found
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&callback=initMap" async defer></script>
+
+<script th:inline="javascript">
+    var locations = /*[[${locations}]]*/ [];
+
+    function initMap() {
+        if (locations.length === 0) return;
+
+        const map = new google.maps.Map(document.getElementById("map"), {
+            center: {
+                lat: parseFloat(locations[locations.length - 1].latitude),
+                lng: parseFloat(locations[locations.length - 1].longitude)
+            },
+            zoom: 12
+        });
+
+        const path = locations.map(l => ({
+            lat: parseFloat(l.latitude),
+            lng: parseFloat(l.longitude)
+        }));
+
+        new google.maps.Polyline({
+            path: path,
+            map: map,
+            strokeColor: "#FF0000",
+            strokeWeight: 2
+        });
+
+        locations.forEach((l, i) => {
+            new google.maps.Marker({
+                position: {
+                    lat: parseFloat(l.latitude),
+                    lng: parseFloat(l.longitude)
+                },
+                map: map,
+                label: (i + 1).toString()
+            });
+        });
+    }
+
+    function fetchPlaceName(row) {
+        const lat = row.getAttribute("data-lat");
+        const lng = row.getAttribute("data-lng");
+        const cell = row.querySelector(".place-cell");
+
+        if (cell.dataset.loaded) return;
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(data => {
+                cell.innerText = data.display_name || "Unknown";
+                cell.dataset.loaded = true;
+            })
+            .catch(() => cell.innerText = "Error");
+    }
+</script>
+
+</body>
+</html>
